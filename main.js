@@ -12,6 +12,7 @@ import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 // VARIABLES
 let theme = 'light';
 let bookCover = null;
+let cvBook = null; // New: CV book reference
 let lightSwitch = null;
 let titleText = null;
 let subtitleText = null;
@@ -44,6 +45,27 @@ let projects = [
     url: '',
   },
 ];
+
+// NEW: Graphic design work array
+let graphicDesigns = [
+  {
+    image: 'textures/design-1.jpg',
+    title: 'Brand Identity',
+  },
+  {
+    image: 'textures/design-2.jpg',
+    title: 'Poster Design',
+  },
+  {
+    image: 'textures/design-3.jpg',
+    title: 'UI/UX Design',
+  },
+  {
+    image: 'textures/design-4.jpg',
+    title: 'Social Media',
+  },
+];
+
 let aboutCameraPos = {
   x: 0.12,
   y: 0.2,
@@ -62,6 +84,30 @@ let projectsCameraPos = {
 let projectsCameraRot = {
   x: 0.05,
   y: 0.05,
+  z: 0,
+};
+
+// NEW: CV camera position
+let cvCameraPos = {
+  x: 0.15,
+  y: 0.35,
+  z: 0.25,
+};
+let cvCameraRot = {
+  x: -0.8,
+  y: 0.5,
+  z: 0.6,
+};
+
+// NEW: Graphic design wall camera position
+let designCameraPos = {
+  x: -0.5,
+  y: 0.5,
+  z: 0.3,
+};
+let designCameraRot = {
+  x: 0,
+  y: -1.57,
   z: 0,
 };
 
@@ -94,14 +140,10 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-// STATS
-// const stats = new Stats();
-// document.querySelector('.experience').appendChild(stats.dom);
+renderer.outputEncoding = THREE.sRGBEncoding;
 
 // CONTROLS
 const controls = new OrbitControls(camera, renderer.domElement);
-// controls.enableDamping = true;
 controls.enablePan = false;
 controls.minDistance = 0.9;
 controls.maxDistance = 1.6;
@@ -112,7 +154,6 @@ controls.maxPolarAngle = Math.PI / 2;
 controls.update();
 
 // LOAD MODEL & ASSET
-// const loadingManager = new THREE.LoadingManager();
 const dracoLoader = new DRACOLoader();
 dracoLoader.setDecoderPath('draco/');
 const gltfLoader = new GLTFLoader();
@@ -120,7 +161,6 @@ gltfLoader.setDRACOLoader(dracoLoader);
 gltfLoader.load(
   'models/room.glb',
   function (room) {
-    // hide loader on loade
     loaderWrapper.style.display = 'none';
 
     // load video
@@ -131,7 +171,6 @@ gltfLoader.load(
     video.autoplay = true;
     video.loop = true;
 
-    // create video texture
     const videoTexture = new THREE.VideoTexture(video);
     videoTexture.minFilter = THREE.NearestFilter;
     videoTexture.magFilter = THREE.NearestFilter;
@@ -139,7 +178,6 @@ gltfLoader.load(
     videoTexture.encoding = THREE.sRGBEncoding;
 
     room.scene.children.forEach((child) => {
-      // disable shadow by wall
       if (child.name !== 'Wall') {
         child.castShadow = true;
       }
@@ -147,7 +185,6 @@ gltfLoader.load(
 
       if (child.children) {
         child.children.forEach((innerChild) => {
-          // disable shadow by book cover & switch btn
           if (innerChild.name !== 'Book001' && innerChild.name !== 'Switch') {
             innerChild.castShadow = true;
           }
@@ -162,7 +199,6 @@ gltfLoader.load(
         video.play();
       }
 
-      // transparent texture for glass
       if (child.name === 'CPU') {
         child.children[0].material = new THREE.MeshPhysicalMaterial();
         child.children[0].material.roughness = 0;
@@ -184,8 +220,6 @@ gltfLoader.load(
 
       if (child.name === 'Book') {
         bookCover = child.children[0];
-
-        // adding texture to book
         const bookTexture = new THREE.TextureLoader().load(
           'textures/book-inner.jpg'
         );
@@ -202,9 +236,18 @@ gltfLoader.load(
     });
 
     scene.add(room.scene);
+    
+    // NEW: Add CV book on desk
+    createCVBook();
+    
+    // NEW: Add graphic design wall gallery
+    createDesignGallery();
+    
+    // NEW: Add interactive lighting effects
+    addInteractiveLighting();
+    
     animate();
 
-    // add animation
     mixer = new THREE.AnimationMixer(room.scene);
     const clips = room.animations;
     clipNames.forEach((clipName) => {
@@ -216,11 +259,10 @@ gltfLoader.load(
     });
 
     loadIntroText();
-
-    // add event listeners
-   
     aboutMenuListener();
     projectsMenuListener();
+    // NEW: Add design gallery listener
+    designMenuListener();
     init3DWorldClickListeners();
     initResponsive(room.scene);
   },
@@ -239,10 +281,10 @@ roomLight.shadow.radius = 5;
 roomLight.shadow.mapSize.width = 2048;
 roomLight.shadow.mapSize.height = 2048;
 roomLight.shadow.camera.far = 2.5;
-// roomLight.shadow.camera.fov = 100;
 roomLight.shadow.bias = -0.002;
 scene.add(roomLight);
-// add light for pc fans
+
+// Fan lights
 const fanLight1 = new THREE.PointLight(0xff0000, 30, 0.2);
 const fanLight2 = new THREE.PointLight(0x00ff00, 30, 0.12);
 const fanLight3 = new THREE.PointLight(0x00ff00, 30, 0.2);
@@ -253,12 +295,9 @@ fanLight2.position.set(-0.15, 0.29, -0.29);
 fanLight3.position.set(0.21, 0.29, -0.29);
 fanLight4.position.set(0.21, 0.19, -0.29);
 fanLight5.position.set(0.21, 0.08, -0.29);
-scene.add(fanLight1);
-scene.add(fanLight2);
-scene.add(fanLight3);
-scene.add(fanLight4);
-scene.add(fanLight5);
-// add point light for text on wall
+scene.add(fanLight1, fanLight2, fanLight3, fanLight4, fanLight5);
+
+// Text lights
 const pointLight1 = new THREE.PointLight(0xff0000, 0, 1.1);
 const pointLight2 = new THREE.PointLight(0xff0000, 0, 1.1);
 const pointLight3 = new THREE.PointLight(0xff0000, 0, 1.1);
@@ -267,47 +306,189 @@ pointLight1.position.set(-0.2, 0.6, 0.24);
 pointLight2.position.set(-0.2, 0.6, 0.42);
 pointLight3.position.set(-0.2, 0.6, 0.01);
 pointLight4.position.set(-0.2, 0.6, -0.14);
-scene.add(pointLight1);
-scene.add(pointLight2);
-scene.add(pointLight3);
-scene.add(pointLight4);
+scene.add(pointLight1, pointLight2, pointLight3, pointLight4);
 
-// SETUP HELPERS
-// const axesHelper = new THREE.AxesHelper(5);
-// scene.add(axesHelper);
-// const gridHelper = new THREE.GridHelper(30, 30);
-// scene.add(gridHelper);
-// const shadowCameraHelper = new THREE.CameraHelper(roomLight.shadow.camera);
-// scene.add(shadowCameraHelper);
-// const pointLightHelper = new THREE.PointLightHelper(fanLight3, 0.03);
-// scene.add(pointLightHelper);
+// NEW: Spotlight for CV book
+const cvSpotlight = new THREE.SpotLight(0xffffff, 0, 1, Math.PI / 6, 0.5, 2);
+cvSpotlight.position.set(0.2, 0.6, 0.3);
+cvSpotlight.target.position.set(0.2, 0.15, 0.3);
+cvSpotlight.castShadow = true;
+scene.add(cvSpotlight);
+scene.add(cvSpotlight.target);
 
-// ADD GUI
-// const gui = new dat.GUI();
-// const options = {
-//   lightX: 0,
-//   lightY: 0.08,
-//   lightZ: 0,
-// };
-// gui.add(options, 'lightX').onChange((e) => {
-//   mobileLight.position.setX(e);
-// });
-// gui.add(options, 'lightY').onChange((e) => {
-//   mobileLight.position.setY(e);
-// });
-// gui.add(options, 'lightZ').onChange((e) => {
-//   mobileLight.position.setZ(e);
-// });
+// NEW: Gallery wall lights
+const galleryLight1 = new THREE.SpotLight(0xffffff, 2, 2, Math.PI / 4, 0.3, 1);
+const galleryLight2 = new THREE.SpotLight(0xffffff, 2, 2, Math.PI / 4, 0.3, 1);
+const galleryLight3 = new THREE.SpotLight(0xffffff, 2, 2, Math.PI / 4, 0.3, 1);
+const galleryLight4 = new THREE.SpotLight(0xffffff, 2, 2, Math.PI / 4, 0.3, 1);
+scene.add(galleryLight1, galleryLight2, galleryLight3, galleryLight4);
+
+// NEW: Create CV Book on desk
+function createCVBook() {
+  const bookGeometry = new THREE.BoxGeometry(0.12, 0.015, 0.16);
+  
+  // Load CV texture
+  const cvTexture = new THREE.TextureLoader().load('textures/cv-cover.jpg');
+  const cvMaterials = [
+    new THREE.MeshStandardMaterial({ color: 0x8B4513 }), // right
+    new THREE.MeshStandardMaterial({ color: 0x8B4513 }), // left
+    new THREE.MeshStandardMaterial({ map: cvTexture }), // top (cover)
+    new THREE.MeshStandardMaterial({ color: 0xF5F5DC }), // bottom
+    new THREE.MeshStandardMaterial({ color: 0x8B4513 }), // front
+    new THREE.MeshStandardMaterial({ color: 0x8B4513 }), // back
+  ];
+  
+  cvBook = new THREE.Mesh(bookGeometry, cvMaterials);
+  cvBook.name = 'CVBook';
+  cvBook.position.set(0.2, 0.158, 0.3); // On the desk
+  cvBook.rotation.y = -0.3;
+  cvBook.castShadow = true;
+  cvBook.receiveShadow = true;
+  scene.add(cvBook);
+  
+  // Add subtle glow effect
+  const glowGeometry = new THREE.BoxGeometry(0.13, 0.02, 0.17);
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffaa00,
+    transparent: true,
+    opacity: 0,
+  });
+  const cvGlow = new THREE.Mesh(glowGeometry, glowMaterial);
+  cvGlow.name = 'CVGlow';
+  cvBook.add(cvGlow);
+}
+
+// NEW: Create Design Gallery on opposite wall
+function createDesignGallery() {
+  graphicDesigns.forEach((design, i) => {
+    const row = Math.floor(i / 2);
+    const col = i % 2;
+    
+    // Create frame
+    const frameGeometry = new THREE.BoxGeometry(0.35, 0.25, 0.01);
+    const frameMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x2C2C2C,
+      metalness: 0.3,
+      roughness: 0.7,
+    });
+    const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+    
+    // Create design plane
+    const designGeometry = new THREE.PlaneGeometry(0.32, 0.22);
+    const designTexture = new THREE.TextureLoader().load(design.image);
+    const designMaterial = new THREE.MeshStandardMaterial({
+      map: designTexture,
+      emissive: 0x000000,
+      emissiveIntensity: 0,
+    });
+    const designPlane = new THREE.Mesh(designGeometry, designMaterial);
+    designPlane.position.z = 0.011;
+    designPlane.name = 'design';
+    designPlane.userData = { 
+      index: i,
+      originalEmissive: 0x000000,
+    };
+    
+    frame.add(designPlane);
+    frame.position.set(-0.7, 0.6 - row * 0.35, 0.2 + col * 0.4);
+    frame.rotation.y = Math.PI / 2;
+    frame.castShadow = true;
+    frame.receiveShadow = true;
+    
+    // Store references
+    design.mesh = designPlane;
+    design.frame = frame;
+    
+    // Setup gallery light
+    const galleryLights = [galleryLight1, galleryLight2, galleryLight3, galleryLight4];
+    galleryLights[i].position.set(-0.5, 0.8 - row * 0.35, 0.2 + col * 0.4);
+    galleryLights[i].target.position.set(-0.7, 0.6 - row * 0.35, 0.2 + col * 0.4);
+    scene.add(galleryLights[i].target);
+    
+    scene.add(frame);
+  });
+}
+
+// NEW: Add interactive lighting effects
+function addInteractiveLighting() {
+  const mousePosition = new THREE.Vector2();
+  const raycaster = new THREE.Raycaster();
+  
+  // Mouse move for spotlight effects
+  window.addEventListener('mousemove', (e) => {
+    mousePosition.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mousePosition.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    
+    raycaster.setFromCamera(mousePosition, camera);
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    
+    // Reset all design emissive
+    graphicDesigns.forEach(design => {
+      if (design.mesh) {
+        gsap.to(design.mesh.material, {
+          emissiveIntensity: 0,
+          duration: 0.3,
+        });
+      }
+    });
+    
+    // Highlight hovered design
+    intersects.forEach(intersect => {
+      if (intersect.object.name === 'design') {
+        gsap.to(intersect.object.material, {
+          emissive: 0xffaa00,
+          emissiveIntensity: 0.3,
+          duration: 0.3,
+        });
+      }
+      
+      // Highlight CV book
+      if (intersect.object.name === 'CVBook') {
+        const glow = intersect.object.children.find(c => c.name === 'CVGlow');
+        if (glow) {
+          gsap.to(glow.material, {
+            opacity: 0.3,
+            duration: 0.3,
+          });
+          gsap.to(cvSpotlight, {
+            intensity: 3,
+            duration: 0.3,
+          });
+        }
+      } else {
+        // Reset CV glow
+        if (cvBook) {
+          const glow = cvBook.children.find(c => c.name === 'CVGlow');
+          if (glow) {
+            gsap.to(glow.material, {
+              opacity: 0,
+              duration: 0.3,
+            });
+          }
+        }
+        gsap.to(cvSpotlight, {
+          intensity: 0,
+          duration: 0.3,
+        });
+      }
+    });
+  });
+}
 
 const clock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
-  // controls.update();
   if (mixer) {
     mixer.update(clock.getDelta());
   }
+  
+  // NEW: Animate fan lights cycling
+  const time = clock.getElapsedTime();
+  fanLight1.intensity = 30 + Math.sin(time * 2) * 5;
+  fanLight2.intensity = 30 + Math.sin(time * 2 + 1) * 5;
+  fanLight3.intensity = 30 + Math.sin(time * 2 + 2) * 5;
+  
   renderer.render(scene, camera);
-  // stats.update();
 }
 
 function loadIntroText() {
@@ -317,7 +498,7 @@ function loadIntroText() {
       new THREE.MeshPhongMaterial({ color: 0x171f27, flatShading: true }),
       new THREE.MeshPhongMaterial({ color: 0xffffff }),
     ];
-    const titleGeo = new TextGeometry('Amine Lajdel ', {
+    const titleGeo = new TextGeometry('Amine Belajdel', {
       font: font,
       size: 0.08,
       height: 0.01,
@@ -354,7 +535,6 @@ function switchTheme(themeType) {
     document.body.classList.remove('light-theme');
     document.body.classList.add('dark-theme');
 
-    // main lights
     gsap.to(roomLight.color, {
       r: 0.27254901960784313,
       g: 0.23137254901960785,
@@ -365,124 +545,58 @@ function switchTheme(themeType) {
       g: 0.23137254901960785,
       b: 0.6862745098039216,
     });
-    gsap.to(roomLight, {
-      intensity: 1.5,
-    });
-    gsap.to(ambientLight, {
-      intensity: 0.3,
+    gsap.to(roomLight, { intensity: 1.5 });
+    gsap.to(ambientLight, { intensity: 0.3 });
+    gsap.to(fanLight5, { distance: 0.07 });
+
+    // Enhance gallery lights in dark mode
+    [galleryLight1, galleryLight2, galleryLight3, galleryLight4].forEach(light => {
+      gsap.to(light, { intensity: 3, duration: 1 });
     });
 
-    // fan lights
-    gsap.to(fanLight5, {
-      distance: 0.07,
-    });
+    gsap.to(titleText.material[0].color, { r: 8, g: 8, b: 8, duration: 0 });
+    gsap.to(titleText.material[1].color, { r: 5, g: 5, b: 5, duration: 0 });
+    gsap.to(subtitleText.material[0].color, { r: 8, g: 8, b: 8, duration: 0 });
+    gsap.to(subtitleText.material[1].color, { r: 5, g: 5, b: 5, duration: 0 });
 
-    // text color
-    gsap.to(titleText.material[0].color, {
-      r: 8,
-      g: 8,
-      b: 8,
-      duration: 0,
-    });
-    gsap.to(titleText.material[1].color, {
-      r: 5,
-      g: 5,
-      b: 5,
-      duration: 0,
-    });
-    gsap.to(subtitleText.material[0].color, {
-      r: 8,
-      g: 8,
-      b: 8,
-      duration: 0,
-    });
-    gsap.to(subtitleText.material[1].color, {
-      r: 5,
-      g: 5,
-      b: 5,
-      duration: 0,
-    });
-
-    // text light
-    gsap.to(pointLight1, {
-      intensity: 0.6,
-    });
-    gsap.to(pointLight2, {
-      intensity: 0.6,
-    });
-    gsap.to(pointLight3, {
-      intensity: 0.6,
-    });
-    gsap.to(pointLight4, {
-      intensity: 0.6,
-    });
+    gsap.to(pointLight1, { intensity: 0.6 });
+    gsap.to(pointLight2, { intensity: 0.6 });
+    gsap.to(pointLight3, { intensity: 0.6 });
+    gsap.to(pointLight4, { intensity: 0.6 });
   } else {
     lightSwitch.rotation.z = 0;
     document.body.classList.remove('dark-theme');
     document.body.classList.add('light-theme');
 
-    // main light
-    gsap.to(roomLight.color, {
-      r: 1,
-      g: 1,
-      b: 1,
-    });
-    gsap.to(ambientLight.color, {
-      r: 1,
-      g: 1,
-      b: 1,
-    });
-    gsap.to(roomLight, {
-      intensity: 2.5,
-    });
-    gsap.to(ambientLight, {
-      intensity: 0.6,
+    gsap.to(roomLight.color, { r: 1, g: 1, b: 1 });
+    gsap.to(ambientLight.color, { r: 1, g: 1, b: 1 });
+    gsap.to(roomLight, { intensity: 2.5 });
+    gsap.to(ambientLight, { intensity: 0.6 });
+    gsap.to(fanLight5, { distance: 0.05 });
+
+    [galleryLight1, galleryLight2, galleryLight3, galleryLight4].forEach(light => {
+      gsap.to(light, { intensity: 2, duration: 1 });
     });
 
-    // fan light
-    gsap.to(fanLight5, {
-      distance: 0.05,
-    });
-
-    // text color
     gsap.to(titleText.material[0].color, {
       r: 0.09019607843137255,
       g: 0.12156862745098039,
       b: 0.15294117647058825,
       duration: 0,
     });
-    gsap.to(titleText.material[1].color, {
-      r: 1,
-      g: 1,
-      b: 1,
-      duration: 0,
-    });
+    gsap.to(titleText.material[1].color, { r: 1, g: 1, b: 1, duration: 0 });
     gsap.to(subtitleText.material[0].color, {
       r: 0.09019607843137255,
       g: 0.12156862745098039,
       b: 0.15294117647058825,
       duration: 0,
     });
-    gsap.to(subtitleText.material[1].color, {
-      r: 1,
-      g: 1,
-      b: 1,
-      duration: 0,
-    });
+    gsap.to(subtitleText.material[1].color, { r: 1, g: 1, b: 1, duration: 0 });
 
-    // text light
-    gsap.to(pointLight1, {
-      intensity: 0,
-    });
-    gsap.to(pointLight2, {
-      intensity: 0,
-    });
-    gsap.to(pointLight3, {
-      intensity: 0,
-    });
-    gsap.to(pointLight4, {
-      intensity: 0,
-    });
+    gsap.to(pointLight1, { intensity: 0 });
+    gsap.to(pointLight2, { intensity: 0 });
+    gsap.to(pointLight3, { intensity: 0 });
+    gsap.to(pointLight4, { intensity: 0 });
   }
 }
 
@@ -504,84 +618,88 @@ function disableCloseBtn() {
 
 function resetBookCover() {
   if (!bookCover) return;
-
-  gsap.to(bookCover.rotation, {
-    x: 0,
-    duration: 1.5,
-  });
+  gsap.to(bookCover.rotation, { x: 0, duration: 1.5 });
 }
 
 function resetProjects() {
   if (projects.length === 0) return;
+  projects.forEach((project) => {
+    gsap.to(project.mesh.material, { opacity: 0, duration: 1 });
+    gsap.to(project.mesh.position, { y: project.y, duration: 1 });
+    gsap.to(project.mesh.scale, { x: 0, y: 0, z: 0, duration: 0, delay: 1 });
+  });
+}
 
-  projects.forEach((project, i) => {
-    gsap.to(project.mesh.material, {
-      opacity: 0,
-      duration: 1,
-    });
-    gsap.to(project.mesh.position, {
-      y: project.y,
-      duration: 1,
-    });
-    gsap.to(project.mesh.scale, {
-      x: 0,
-      y: 0,
-      z: 0,
-      duration: 0,
-      delay: 1,
-    });
+// NEW: Reset design gallery
+function resetDesigns() {
+  graphicDesigns.forEach(design => {
+    if (design.mesh) {
+      gsap.to(design.mesh.material, {
+        emissiveIntensity: 0,
+        duration: 0.5,
+      });
+    }
   });
 }
 
 function resetCamera() {
   resetBookCover();
   resetProjects();
+  resetDesigns();
   disableCloseBtn();
-  gsap.to(camera.position, {
-    ...defaultCameraPos,
-    duration: 1.5,
-  });
-  gsap.to(camera.rotation, {
-    ...defaultCamerRot,
-    duration: 1.5,
-  });
+  gsap.to(camera.position, { ...defaultCameraPos, duration: 1.5 });
+  gsap.to(camera.rotation, { ...defaultCamerRot, duration: 1.5 });
   gsap.delayedCall(1.5, enableOrbitControls);
 
-  // reset dimmed light for about display
   if (theme !== 'dark') {
-    gsap.to(roomLight, {
-      intensity: 2.5,
-      duration: 1.5,
-    });
+    gsap.to(roomLight, { intensity: 2.5, duration: 1.5 });
   }
 }
 
-
-
 function cameraToAbout() {
   if (!bookCover) return;
+  gsap.to(camera.position, { ...aboutCameraPos, duration: 1.5 });
+  gsap.to(camera.rotation, { ...aboutCameraRot, duration: 1.5 });
+  gsap.to(bookCover.rotation, { x: Math.PI, duration: 1.5, delay: 1.5 });
 
-  gsap.to(camera.position, {
-    ...aboutCameraPos,
-    duration: 1.5,
-  });
-  gsap.to(camera.rotation, {
-    ...aboutCameraRot,
-    duration: 1.5,
-  });
-  gsap.to(bookCover.rotation, {
-    x: Math.PI,
-    duration: 1.5,
-    delay: 1.5,
-  });
-
-  // prevent about text clutter due to bright light
   if (theme !== 'dark') {
-    gsap.to(roomLight, {
-      intensity: 1,
-      duration: 1.5,
-    });
+    gsap.to(roomLight, { intensity: 1, duration: 1.5 });
   }
+}
+
+// NEW: Camera to CV book
+function cameraToCVBook() {
+  if (!cvBook) return;
+  disableOrbitControls();
+  resetProjects();
+  resetDesigns();
+  gsap.to(camera.position, { ...cvCameraPos, duration: 1.5 });
+  gsap.to(camera.rotation, { ...cvCameraRot, duration: 1.5 });
+  gsap.to(cvSpotlight, { intensity: 5, duration: 1.5 });
+  gsap.delayedCall(1.5, enableCloseBtn);
+}
+
+// NEW: Camera to design gallery
+function cameraToDesigns() {
+  disableOrbitControls();
+  resetBookCover();
+  resetProjects();
+  gsap.to(camera.position, { ...designCameraPos, duration: 1.5 });
+  gsap.to(camera.rotation, { ...designCameraRot, duration: 1.5 });
+  
+  // Animate designs appearing
+  graphicDesigns.forEach((design, i) => {
+    if (design.mesh) {
+      gsap.to(design.mesh.material, {
+        emissive: 0xffaa00,
+        emissiveIntensity: 0.2,
+        duration: 0.5,
+        delay: 1.5 + i * 0.2,
+      });
+    }
+  });
+  
+  gsap.delayedCall(1.5, enableCloseBtn);
 }
 
 function aboutMenuListener() {
@@ -589,190 +707,24 @@ function aboutMenuListener() {
     e.preventDefault();
     disableOrbitControls();
     resetProjects();
+    resetDesigns();
     cameraToAbout();
     gsap.delayedCall(1.5, enableCloseBtn);
   });
 }
 
-function projectsMenuListener() {
-  // create project planes with textures
-  projects.forEach((project, i) => {
-    const colIndex = i % 3 === 0 ? 0 : 1;
-    const rowIndex = Math.floor(i / 3);
-    const geometry = new THREE.PlaneGeometry(0.71, 0.4);
-    const material = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      map: new THREE.TextureLoader().load(project.image),
-      transparent: true,
-      opacity: 0.0,
-    });
-    const projectPlane = new THREE.Mesh(geometry, material);
-    projectPlane.name = 'project';
-    projectPlane.userData = {
-      url: project.url,
-    };
-    projectPlane.position.set(
-      0.3 + i * 0.8 * colIndex,
-      1 - rowIndex * 0.5,
-      -1.15
-    );
-    projectPlane.scale.set(0, 0, 0);
-    // mesh & y vars needed for animation
-    projects[i].mesh = projectPlane;
-    projects[i].y = 1 - rowIndex * 0.5;
-    scene.add(projectPlane);
-  });
-
-  document
-    .getElementById('projects-menu')
-    .addEventListener('click', function (e) {
+// NEW: Design gallery menu listener
+function designMenuListener() {
+  // Add design menu button listener if exists
+  const designMenu = document.getElementById('design-menu');
+  if (designMenu) {
+    designMenu.addEventListener('click', function (e) {
       e.preventDefault();
-      disableOrbitControls();
-      resetBookCover();
-      gsap.to(camera.position, {
-        ...projectsCameraPos,
-        duration: 1.5,
-      });
-      gsap.to(camera.rotation, {
-        ...projectsCameraRot,
-        duration: 1.5,
-      });
-      gsap.delayedCall(1.5, enableCloseBtn);
-
-      // animate & show project items
-      projects.forEach((project, i) => {
-        project.mesh.scale.set(1, 1, 1);
-        gsap.to(project.mesh.material, {
-          opacity: 1,
-          duration: 1.5,
-          delay: 1.5 + i * 0.1,
-        });
-        gsap.to(project.mesh.position, {
-          y: project.y + 0.05,
-          duration: 1,
-          delay: 1.5 + i * 0.1,
-        });
-      });
+      cameraToDesigns();
     });
-}
-
-function init3DWorldClickListeners() {
-  const mousePosition = new THREE.Vector2();
-  const raycaster = new THREE.Raycaster();
-  let intersects;
-
-  window.addEventListener('click', function (e) {
-    // store value set to prevent multi time update in foreach loop
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-
-    // prevent about focus on button click which are positioned above book in mobile view
-    const closeBtn = document.getElementById('close-btn');
-    const projectsBtn = document.getElementById('projects-menu');
-    if (
-      e.target === closeBtn ||
-      closeBtn.contains(e.target) ||
-      e.target === projectsBtn ||
-      projectsBtn.contains(e.target)
-    ) {
-      return false;
-    }
-
-    mousePosition.x = (e.clientX / window.innerWidth) * 2 - 1;
-    mousePosition.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    raycaster.setFromCamera(mousePosition, camera);
-    intersects = raycaster.intersectObjects(scene.children);
-    intersects.forEach((intersect) => {
-      if (intersect.object.name === 'project') {
-        intersect.object.userData.url &&
-          window.open(intersect.object.userData.url);
-      }
-
-      if (
-        intersect.object.name === 'Book' ||
-        intersect.object.name === 'Book001'
-      ) {
-        disableOrbitControls();
-        cameraToAbout();
-        gsap.delayedCall(1.5, enableCloseBtn);
-      }
-
-      if (
-        intersect.object.name === 'SwitchBoard' ||
-        intersect.object.name === 'Switch'
-      ) {
-        theme = newTheme;
-        switchTheme(theme);
-      }
-    });
-  });
-}
-
-// RESPONSIVE
-function initResponsive(roomScene) {
-  if (isMobile) {
-    roomScene.scale.set(0.95, 0.95, 0.95);
-    aboutCameraPos = {
-      x: 0.09,
-      y: 0.23,
-      z: 0.51,
-    };
-    aboutCameraRot = {
-      x: -1.57,
-      y: 0,
-      z: 1.57,
-    };
-
-    // rect light
-    // rectLight.width = 0.406;
-    // rectLight.height = 0.3;
-    // rectLight.position.z = -0.34;
-
-    // project
-    projectsCameraPos = {
-      x: 1.1,
-      y: 0.82,
-      z: 0.5,
-    };
-    projectsCameraRot = {
-      x: 0,
-      y: 0,
-      z: 1.55,
-    };
-    projects.forEach((project, i) => {
-      project.mesh.position.z = -1.13;
-    });
-
-    controls.maxDistance = 1.5;
-    controls.maxAzimuthAngle = Math.PI * 0.75;
   }
 }
 
-// close button
-document.getElementById('close-btn').addEventListener('click', (e) => {
-  e.preventDefault();
-  resetCamera();
-});
-
-// contact menu
-document.getElementById('contact-btn').addEventListener('click', (e) => {
-  e.preventDefault();
-  document
-    .querySelector('.contact-menu__dropdown')
-    .classList.toggle('contact-menu__dropdown--open');
-});
-
-document.addEventListener('mouseup', (e) => {
-  const container = document.querySelector('.contact-menu');
-  if (!container.contains(e.target)) {
-    container
-      .querySelector('.contact-menu__dropdown')
-      .classList.remove('contact-menu__dropdown--open');
-  }
-});
-
-// update camera, renderer on resize
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+function projectsMenuListener() {
+  projects.forEach((project, i) => {
+    const colIndex = i % 3 ===
